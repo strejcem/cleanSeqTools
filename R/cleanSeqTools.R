@@ -1,4 +1,4 @@
-message("cleanSeqTools.R v1.29 loaded (Aug-20-2020)")
+message("cleanSeqTools.R v1.30 loaded (Aug-31-2020)")
 message("By Michal Strejcek @ UCT Prague")
 message("Depencencies: 'dada2', 'ShortRead', 'phyloseq'")
 
@@ -86,12 +86,18 @@ renameByID <- function(dir.from,
 #******************************************************************************
 ###############################################################################
 
-checkPrimers <- function(fqs,
+checkPrimers <- function(dir.from,
                          fPrimer = "GTGYCAGCMGCNGCGG",
                          rPrimer = "CCGYCAATTYMTTTRAGTTT",
+                         pattern = "fastq",
                          maxSpacer = 10) {
-  if (all(!file.exists(fqs))) {
-    stop("Wrong file path")
+  fqs <-
+    list.files(path = dir.from,
+               pattern = pattern,
+               full.names = TRUE)
+  
+  if (length(fqs) == 0) {
+    stop("No files found with the '", pattern, "' pattern!")
   }
   
   rndSample <- sample(length(fqs) / 2, 1)
@@ -148,7 +154,7 @@ checkPrimers <- function(fqs,
                         stop = 20)
       tbl <- sort(table(first20), decreasing = T)
       df <- data.frame(tbl)
-      print(df[1:10, ])
+      print(df[1:10,])
       
     }
     message("\n")
@@ -159,16 +165,22 @@ checkPrimers <- function(fqs,
 #******************************************************************************
 ###############################################################################
 
-removePrimers <- function(fqs,
+removePrimers <- function(dir.from,
                           dir.to,
                           fPrimer = "GTGYCAGCMGCNGCGG",
                           rPrimer = "CCGYCAATTYMTTTRAGTTT",
                           keepPE = TRUE,
                           gz = TRUE,
+                          pattern = "fastq",
                           maxSpacer = 10,
                           parallel = FALSE) {
-  if (all(!file.exists(fqs))) {
-    stop("Wrong file path")
+  fqs <-
+    list.files(path = dir.from,
+               pattern = pattern,
+               full.names = TRUE)
+  
+  if (length(fqs) == 0) {
+    stop("No files found with the '", pattern, "' pattern!")
   }
   
   if (!dir.exists(dir.to)) {
@@ -217,7 +229,8 @@ removePrimers <- function(fqs,
       start <- as.integer(apply(matches, 2, which)) + nchar(fPrimer)
       trimmed_R1 <- ShortRead::narrow(fq_R1, start = start)
       trimmed_R1 <- trimmed_R1[!is.na(start)]
-      discarded_R1 <- as.character(ShortRead::id(fq_R1)[is.na(start)])
+      discarded_R1 <-
+        as.character(ShortRead::id(fq_R1)[is.na(start)])
       discarded_R1 <- sub(" .*$", "", discarded_R1)
       
       fq_R2 <- ShortRead::readFastq(R2s[i])
@@ -244,7 +257,8 @@ removePrimers <- function(fqs,
       start <- as.integer(apply(matches, 2, which)) + nchar(rPrimer)
       trimmed_R2 <- ShortRead::narrow(fq_R2, start = start)
       trimmed_R2 <- trimmed_R2[!is.na(start)]
-      discarded_R2 <- as.character(ShortRead::id(fq_R2)[is.na(start)])
+      discarded_R2 <-
+        as.character(ShortRead::id(fq_R2)[is.na(start)])
       discarded_R2 <- sub(" .*$", "", discarded_R2)
       
       if (keepPE) {
@@ -291,10 +305,10 @@ removePrimers <- function(fqs,
     }
   
   if (is.numeric(parallel)) {
-    cl <- parallel::makeCluster(parallel, outfile="")
+    cl <- parallel::makeCluster(parallel, outfile = "")
     parallel <- TRUE
   } else if (isTRUE(parallel)) {
-    cl <- parallel::makeCluster(parallel::detectCores() - 1, outfile="")
+    cl <- parallel::makeCluster(parallel::detectCores() - 1, outfile = "")
   } else if (!isFALSE(parallel)) {
     stop("Required 'parallel argument values: number of cores, TRUE, FALSE")
   }
@@ -354,7 +368,7 @@ cleanSeqTab <-
     }
     else
       message("Applying supplemented Kmer-NW distance matrix!")
-    KmerNWdist <- KmerNWdist[KmerNWdist$diff_bases <= numDiffs, ]
+    KmerNWdist <- KmerNWdist[KmerNWdist$diff_bases <= numDiffs,]
     abundance <- colSums(seqTab)
     sequenceIdxToProcess <- unique(c(KmerNWdist$s1, KmerNWdist$s2))
     message("Sequence table cleaning")
@@ -523,7 +537,7 @@ cleanReplicates <-
       output <- output * selection
     }
     else if (!merge) {
-      selection <- selection[replicates, ]
+      selection <- selection[replicates,]
       output <- seqTab * selection
     }
     if (eraseEmpty)
@@ -535,29 +549,33 @@ cleanReplicates <-
 #******************************************************************************
 ###############################################################################
 
-checkMock <- function(mock.sample, mock.ref, topTaxa = 50) {
-  local_fun <- function(seq, mock.ref) {
-    NW <- Biostrings::pairwiseAlignment(mock.ref, seq, type = "global")
-    nm <- Biostrings::nmismatch(NW)
-    data.frame(closest = names(mock.ref[which.min(nm)]) ,
-               mismatches = min(nm))
+checkMock <-
+  function(mock.sample,
+           mock.ref,
+           topTaxa = 50,
+           alignment = "local-global") {
+    local_fun <- function(seq, mock.ref) {
+      NW <- Biostrings::pairwiseAlignment(mock.ref, seq, type = alignment)
+      nm <- Biostrings::nmismatch(NW)
+      data.frame(closest = names(mock.ref[which.min(nm)]) ,
+                 mismatches = min(nm))
+    }
+    mock.sample <-
+      sort(mock.sample[mock.sample > 0], decreasing = TRUE)
+    topTaxa <- min(topTaxa, length(mock.sample))
+    mock.sample.subset <- mock.sample[1:topTaxa]
+    seqs <- names(mock.sample.subset)
+    l <- lapply(seqs, local_fun, mock.ref)
+    output <- do.call(rbind, l)
+    output[, "abundance"] <- mock.sample.subset
+    output[, "fraction"] <-
+      round(mock.sample.subset / sum(mock.sample), 4)
+    message("Number exact matches ",
+            sum(output[, "mismatches"] == 0),
+            " out of ",
+            length(mock.ref))
+    return(output)
   }
-  mock.sample <-
-    sort(mock.sample[mock.sample > 0], decreasing = TRUE)
-  topTaxa <- min(topTaxa, length(mock.sample))
-  mock.sample.subset <- mock.sample[1:topTaxa]
-  seqs <- names(mock.sample.subset)
-  l <- lapply(seqs, local_fun, mock.ref)
-  output <- do.call(rbind, l)
-  output[, "abundance"] <- mock.sample.subset
-  output[, "fraction"] <-
-    round(mock.sample.subset / sum(mock.sample), 4)
-  message("Number exact matches ",
-          sum(output[, "mismatches"] == 0),
-          " out of ",
-          length(mock.ref))
-  return(output)
-}
 
 ###############################################################################
 #******************************************************************************
