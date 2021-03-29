@@ -39,6 +39,10 @@ renameByID <- function(dir.from,
       stop("Something wrong with the '", basename(csvFile), "'")
     }
     
+    if (!dir.exists(dir.to)) {
+    dir.create(dir.to)
+  }
+    
     samples_new <- unname(unlist(sampleTab))
     samples_new[samples_new == ""] <- NA
     notEmpty <- !is.na(samples_new)
