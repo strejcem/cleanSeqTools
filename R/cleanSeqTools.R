@@ -1,4 +1,4 @@
-message("cleanSeqTools.R v1.30 loaded (Aug-31-2020)")
+message("cleanSeqTools.R v1.31 loaded (Mar-29-2021)")
 message("By Michal Strejcek @ UCT Prague")
 message("Depencencies: 'dada2', 'ShortRead', 'phyloseq'")
 
@@ -9,10 +9,11 @@ message("Depencencies: 'dada2', 'ShortRead', 'phyloseq'")
 renameByID <- function(dir.from,
                        dir.to,
                        extension = "fastq.gz",
-                       csvFile = NULL,
                        ID.from = NULL,
                        ID.to = NULL,
-                       prefix = NULL) {
+                       prefix = NULL,
+                       csvFile = NULL,
+                       demuxy_format = c("A01", "A1") {
   if (is.null(c(csvFile,
                 ID.from,
                 ID.to))) {
@@ -43,8 +44,12 @@ renameByID <- function(dir.from,
             basename(csvFile))
     x <- dim(sampleTab)[1]
     y <- dim(sampleTab)[2]
-    samples_old <-
+    if (demuxy_format[1] == "A01") {
+      samples_old <-
       paste0(rep(LETTERS[1:x], times = y), rep(sprintf("%02d", 1:y), each = x))
+  } elseif (demuxy_format[1] == "A1") {
+      samples_old <- paste0(rep(LETTERS[1:x], times = y), rep(1:y, each = x))
+  }
     samples_old <- samples_old[notEmpty]
     samples_new <- samples_new[notEmpty]
   }
