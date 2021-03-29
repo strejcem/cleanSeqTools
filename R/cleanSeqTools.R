@@ -51,7 +51,7 @@ renameByID <- function(dir.from,
     if (demuxy_format[1] == "A01") {
       samples_old <-
       paste0(rep(LETTERS[1:x], times = y), rep(sprintf("%02d", 1:y), each = x))
-  } elseif (demuxy_format[1] == "A1") {
+  } ifelse (demuxy_format[1] == "A1") {
       samples_old <- paste0(rep(LETTERS[1:x], times = y), rep(1:y, each = x))
   } else {stop("Specify correct demuxy format: either 'A01' or 'A1'")}
     samples_old <- samples_old[notEmpty]
