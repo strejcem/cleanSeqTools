@@ -70,7 +70,7 @@ renameByID <- function(dir.from,
   fln <-
     list.files(path = dir.from,
                pattern = extension,
-               full.names = T)
+               full.names = F)
   
   if (!grepl("_R[1|2]", fln[2])) {
     stop("Sequence files are expected to have _R1 and _R2 identifier")
