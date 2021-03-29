@@ -68,7 +68,7 @@ renameByID <- function(dir.from,
   }
   
   for (i in seq_along(samples_old)) {
-    files <- fln[grepl(samples_old[i], fln)]
+    files <- fln[grepl(paste0(samples_old[i], "_R[1|2]"), fln)]
     if (length(files) != 2) {
       stop(
         "Irregular number of samples detected, should be exactly 2 (R1 and R2):\n",
