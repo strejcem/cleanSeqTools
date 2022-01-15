@@ -1,0 +1,204 @@
+---
+title: "Jachymov19_amplicon"
+author: "Michal Strejcek @ UCT Prague"
+date: "Sep-01-2020"
+output: rmarkdown::github_document
+---
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  fig.path = "README_figs/README-"
+)
+```
+# 16S amplicon analysis of Jachymov hotsprings samples
+
+Prepare files for dada2.
+```{r libraries}
+library(dada2); packageVersion("dada2")
+library(phyloseq)
+library(dplyr)
+library(ggplot2)
+devtools::source_url("https://raw.githubusercontent.com/strejcem/cleanSeqTools/master/R/cleanSeqTools.R")
+```
+The directory 'source' contains the fastq files.
+```{r primers}
+checkPrimers("source", fPrimer = "GTGYCAGCMGCNGCGG", rPrimer = "CCGYCAATTYMTTTRAGTTT")
+
+removePrimers(dir.from = "source", dir.to = "removedPrimer",
+                              fPrimer = "GTGYCAGCMGCNGCGG", rPrimer = "CCGYCAATTYMTTTRAGTTT",
+                              )
+```
+Based on DADA2 Pipeline Tutorial (1.16)
+```{r files}
+path <- "removedPrimer"
+list.files(path)
+
+fnFs <- sort(list.files(path, pattern="_R1.fastq.gz", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_R2.fastq.gz", full.names = TRUE))
+# Extract sample names
+sample.names <-strsplit(basename(fnFs), "_")
+sample.names <- sapply(sample.names, function(x) paste(x[2:3], collapse = "_"))
+
+plotQualityProfile(fnFs[14:15]) + ggplot2::xlim(200,300) + ggplot2::ylim(20,40)
+plotQualityProfile(fnRs[10:11]) + ggplot2::xlim(150,250)                    
+
+# Place filtered files in filtered/ subdirectory
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(path, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+```
+You should set the `truncLen=c(240,160)` based on your data. Look at the Quality plots and set the values based on where the qualities drop.
+
+```{r filter}
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(240,160),
+                     maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, multithread=TRUE, matchIDs = TRUE) # On Windows set multithread=FALSE
+head(out)
+```
+```{r dada}
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+
+plotErrors(errF, nominalQ=TRUE)
+plotErrors(errR, nominalQ=TRUE)
+
+dadaFs <- dada(filtFs, err=errF, pool = TRUE, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, pool = TRUE, multithread=TRUE)
+
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+# Inspect the merger data.frame from the first sample
+head(mergers[[1]])
+
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+
+table(nchar(getSequences(seqtab)))
+
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="pooled", multithread=TRUE, verbose=TRUE)
+
+dim(seqtab.nochim)
+sum(seqtab.nochim)/sum(seqtab)
+
+saveRDS(seqtab.nochim, file = "seqtab.nochim.RDS")
+```
+Check if everything look OK.
+```{r stats}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+
+track <- as.data.frame(track)
+track %>%
+  mutate(perc_total = nonchim/input, perc_merge = merged/denoisedF) %>%
+  arrange(desc(perc_total))
+
+saveRDS(track, file = "track.RDS")
+
+# Let's check replicates
+bray <- vegan::vegdist(seqtab.nochim)
+h <- hclust(bray, method = "ward.D2")
+plot(h)
+
+# Concatenate replicates together
+replicates <- sub("_[1-2]", "", rownames(seqtab.nochim))
+seqtab.nochim.norep <- cleanReplicates(seqtab.nochim, replicates, prevalence = 0)
+```
+
+Looks resonambly good
+```{r mock}
+# Mock community analysis
+mock.ref <- Biostrings::readDNAStringSet("MOCK_15strains_Smrhas_2019_trimmed.fas")
+grep("Mock", rownames(seqtab.nochim.norep))
+checkMock(seqtab.nochim.norep[8, ], mock.ref = mock.ref)
+```
+Several single base mistmatches and 1 2-base. Lets run 'pre-cluster' to clean the data.
+```{r precluster}
+KmerNWdist <- hammingFast(colnames(seqtab.nochim.norep), numDiffs = 2)
+seqtab.nochim.norep.cln1 <- cleanSeqTab(seqtab.nochim.norep, KmerNWdist = KmerNWdist, numDiffs = 1)
+seqtab.nochim.norep.cln2 <- cleanSeqTab(seqtab.nochim.norep, KmerNWdist = KmerNWdist, numDiffs = 2)
+
+# Mock community analysis
+mock.ref <- Biostrings::readDNAStringSet("MOCK_15strains_Smrhas_2019_trimmed.fas")
+grep("Mock", rownames(seqtab.nochim.norep.cln1))
+checkMock(seqtab.nochim.norep.cln1[8, ], mock.ref = mock.ref)
+checkMock(seqtab.nochim.norep.cln2[8, ], mock.ref = mock.ref)
+
+dim(seqtab.nochim.norep.cln1)
+dim(seqtab.nochim.norep.cln2)
+
+saveRDS(seqtab.nochim.norep.cln1, file = "seqtab.nochim.norep.cln1.RDS")
+
+```
+Let's use cln1.
+
+Continue with taxonomy, we use Silva DB:
+```{r Taxonomy}
+
+taxa <- assignTaxonomy(seqtab.nochim.norep.cln1, "silva_nr99_v138_train_set.fa.gz", multithread=TRUE)
+taxa <- addSpecies(taxa, "silva_species_assignment_v138.fa.gz")
+
+saveRDS(taxa, file = "taxa.cln1.RDS")
+```
+And Phyloseq:
+```{r phyloseq}
+s_data <- data.frame(
+  row.names = rownames(seqtab.nochim.norep.cln1),
+  Spring = rownames(seqtab.nochim.norep.cln1),
+  type = c(rep("sample", 4), rep("control", 3), "mock")
+  )
+
+ps.complete <- phyloseq(
+  otu_table(seqtab.nochim.norep.cln1, taxa_are_rows = FALSE),
+  sample_data(s_data),
+  tax_table(taxa)
+  )
+
+dna <- Biostrings::DNAStringSet(taxa_names(ps.complete))
+names(dna) <- taxa_names(ps.complete)
+ps.complete <- merge_phyloseq(ps.complete, dna)
+taxa_names(ps.complete) <- paste0("ASV", seq(ntaxa(ps.complete)))
+ps.complete
+
+writeDTB(ps.complete, path = "DTB.complete.tsv")
+
+saveRDS(ps.complete, "ps.complete.RDS")
+```
+Now, deal with the contamination:
+```{r Contamination}
+
+ps.mock <- subset_samples(ps.complete, type == "mock")
+ps.mock <- prune_taxa(taxa_sums(ps.mock) > 0, ps.mock)
+
+mock.seq <- as(otu_table(ps.mock), "integer")
+names(mock.seq) <- as.character(refseq(ps.mock))
+mock.ref <- Biostrings::readDNAStringSet("MOCK_15strains_Smrhas_2019_trimmed.fas")
+mock.seq <- sort(mock.seq, decreasing = TRUE)
+
+checkMock(mock.seq, mock.ref)
+
+contamination <- names(mock.seq)[14]
+ps.contamination <- prune_taxa(refseq(ps.complete) == contamination, transform_sample_counts(ps.complete, function(x) x/sum(x)))
+
+plot_bar(ps.contamination, fill = "type", title = "Relative abundance of the contaminat ASV in samples") +
+  geom_text(aes(label = round(Abundance, 3), vjust = -1))
+
+```
+
+Obviously, this is a contamination that is really abundant in control samples (start with K) and mock community
+```{r ps.samples}
+ps.samples <- subset_samples(ps.complete, type == "sample")
+ps.samples <- prune_taxa(taxa_sums(ps.samples) > 0, ps.samples)
+ps.samples <- prune_taxa(refseq(ps.samples) != contamination, ps.samples)
+ps.samples
+
+writeDTB(ps.samples, path = "DTB.samples.tsv")
+
+saveRDS(ps.samples, file = "ps.samples.RDS")
+```
+### The End
+```{r session}
+sessionInfo()
+```
+
