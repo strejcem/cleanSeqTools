@@ -38,11 +38,11 @@ renameByID <- function(dir.from,
     if (!all(dim(sampleTab)) > 0) {
       stop("Something wrong with the '", basename(csvFile), "'")
     }
-  }  
-  
+    
     if (!dir.exists(dir.to)) {
-    dir.create(dir.to)
-      
+      dir.create(dir.to)
+    }
+    
     samples_new <- unname(unlist(sampleTab))
     samples_new[samples_new == ""] <- NA
     notEmpty <- !is.na(samples_new)
@@ -65,6 +65,10 @@ renameByID <- function(dir.from,
   if (!(is.null(ID.from) & is.null(ID.to))) {
     samples_old <- ID.from
     samples_new <- ID.to
+    
+    if (!dir.exists(dir.to)) {
+      dir.create(dir.to)
+    }
   }
   
   if (any(duplicated(samples_new))) {
