@@ -8,4 +8,4 @@ devtools::source_url("https://raw.githubusercontent.com/strejcem/cleanSeqTools/m
 ```
 16S rRNA amplicon analysis, from reads to clean data: [Jachymov hotsprings](https://github.com/strejcem/cleanSeqTools/blob/master/Jachymov19_ASV.md)
 
-script for cutting off ITS primers: [cutITSprimers.R](https://github.com/strejcem/cleanSeqTools/blob/master/R/cutITSprimers.R) (doesn't work on Windows)
+script for cutting off ITS primers: [cutITSprimers.R](https://github.com/strejcem/cleanSeqTools/blob/master/R/cutITSprimers.R) (linux, doesn't work on Windows)
