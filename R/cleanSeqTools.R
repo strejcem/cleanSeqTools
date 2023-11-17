@@ -93,7 +93,7 @@ renameByID <- function(dir.from,
       )
     }
     suffix <- sub("^.*(_R[1|2]\\..*$)", "\\1", files)
-    file.rename(from = file.path(dir.from, files),
+    file.copy(from = file.path(dir.from, files),
                 to = file.path(dir.to, paste0(prefix, samples_new[i], suffix)))
   }
   message("Done")
