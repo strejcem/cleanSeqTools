@@ -16,7 +16,7 @@ renameByID <- function(dir.from,
                        demuxy_format = "A01") {
   if (!is.null(csvFile)) {
     message("You can specify the demuxy format in demuxy_format = 'A01' or 'A1'")
-    }
+  }
   
   if (is.null(c(csvFile,
                 ID.from,
@@ -52,12 +52,12 @@ renameByID <- function(dir.from,
             basename(csvFile))
     x <- dim(sampleTab)[1]
     y <- dim(sampleTab)[2]
-    if (demuxy_format[1] == "A01") {
+    if (demuxy_format == "A01") {
       samples_old <-
-      paste0(rep(LETTERS[1:x], times = y), rep(sprintf("%02d", 1:y), each = x))
-  } else if (demuxy_format[1] == "A1") {
+        paste0(rep(LETTERS[1:x], times = y), rep(sprintf("%02d", 1:y), each = x))
+    } else if (demuxy_format[1] == "A1") {
       samples_old <- paste0(rep(LETTERS[1:x], times = y), rep(1:y, each = x))
-  } else {stop("Specify correct demuxy format: either 'A01' or 'A1'")}
+    } else {stop("Specify correct demuxy format: either 'A01' or 'A1'")}
     samples_old <- samples_old[notEmpty]
     samples_new <- samples_new[notEmpty]
   }
@@ -78,23 +78,26 @@ renameByID <- function(dir.from,
   fln <-
     list.files(path = dir.from,
                pattern = extension,
-               full.names = F)
+               full.names = TRUE,
+               recursive = TRUE)
   
-  if (!grepl("_R[1|2]", fln[2])) {
+  fln_basename <- basename(fln)
+  fln_dir <- dirname(fln)
+  if (!grepl("_R[1|2]", fln_basename[2])) {
     stop("Sequence files are expected to have _R1 and _R2 identifier")
   }
   
   for (i in seq_along(samples_old)) {
-    files <- fln[grepl(paste0(samples_old[i], "_R[1|2]"), fln)]
-    if (length(files) != 2) {
+    files_match <- grepl(paste0(samples_old[i], "_R[1|2]"), fln_basename)
+    if (sum(files_match) != 2) {
       stop(
         "Irregular number of samples detected, should be exactly 2 (R1 and R2):\n",
         paste(files, collapse = ", ")
       )
     }
-    suffix <- sub("^.*(_R[1|2]\\..*$)", "\\1", files)
-    file.copy(from = file.path(dir.from, files),
-                to = file.path(dir.to, paste0(prefix, samples_new[i], suffix)))
+    suffix <- sub("^.*(_R[1|2]\\..*$)", "\\1", fln_basename[files_match])
+    file.copy(from = file.path(fln[files_match]),
+              to = file.path(dir.to, paste0(prefix, samples_new[i], suffix)))
   }
   message("Done")
 }
