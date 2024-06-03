@@ -1,4 +1,4 @@
-message("cleanSeqTools.R v1.33 loaded (Jun-03-2024)")
+message("cleanSeqTools.R v1.34 loaded (Jun-03-2024)")
 message("By Michal Strejcek @ UCT Prague")
 message("Depencencies: 'dada2', 'ShortRead', 'phyloseq'")
 
@@ -575,7 +575,7 @@ checkMock <-
            topTaxa = 50,
            alignment = "local-global") {
     local_fun <- function(seq, mock.ref) {
-      NW <- Biostrings::pairwiseAlignment(mock.ref, seq, type = alignment)
+      NW <- pwalign::pairwiseAlignment(mock.ref, seq, type = alignment)
       nm <- Biostrings::nmismatch(NW)
       data.frame(closest = names(mock.ref[which.min(nm)]) ,
                  mismatches = min(nm))
