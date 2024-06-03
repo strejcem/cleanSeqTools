@@ -1,4 +1,4 @@
-message("cleanSeqTools.R v1.33 loaded (Nov-17-2023)")
+message("cleanSeqTools.R v1.33 loaded (Jun-03-2024)")
 message("By Michal Strejcek @ UCT Prague")
 message("Depencencies: 'dada2', 'ShortRead', 'phyloseq'")
 
