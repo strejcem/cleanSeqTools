@@ -574,22 +574,28 @@ checkMock <-
            mock.ref,
            topTaxa = 50,
            alignment = "local-global") {
+    
     local_fun <- function(seq, mock.ref) {
-      NW <- pwalign::pairwiseAlignment(mock.ref, seq, type = alignment)
-      nm <- Biostrings::nmismatch(NW)
-      data.frame(closest = names(mock.ref[which.min(nm)]) ,
-                 mismatches = min(nm))
+      alignments <- pwalign::pairwiseAlignment(mock.ref, seq, type = alignment)
+      nm <- Biostrings::nmismatch(alignments)
+      alignments_length <-Biostrings::width(pwalign::alignedPattern(alignments))
+      which_clostest <- which.min(nm)
+      data.frame(closest = names(mock.ref[which_clostest]) ,
+                 mismatches = nm[which_clostest],
+                 length = alignments_length[which_clostest])
     }
+    
     mock.sample <-
       sort(mock.sample[mock.sample > 0], decreasing = TRUE)
     topTaxa <- min(topTaxa, length(mock.sample))
     mock.sample.subset <- mock.sample[1:topTaxa]
     seqs <- names(mock.sample.subset)
+    
     l <- lapply(seqs, local_fun, mock.ref)
     output <- do.call(rbind, l)
     output[, "abundance"] <- mock.sample.subset
     output[, "fraction"] <-
-      round(mock.sample.subset / sum(mock.sample), 4)
+      round(mock.sample.subset / sum(mock.sample), 3)
     message("Number exact matches ",
             sum(output[, "mismatches"] == 0),
             " out of ",
