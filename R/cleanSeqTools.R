@@ -1,4 +1,4 @@
-message("cleanSeqTools.R v1.34 loaded (Jun-03-2024)")
+message("cleanSeqTools.R v1.35 loaded (Aug-06-2025)")
 message("By Michal Strejcek @ UCT Prague")
 message("Depencencies: 'dada2', 'ShortRead', 'phyloseq'")
 
@@ -189,6 +189,7 @@ removePrimers <- function(dir.from,
                           dir.to,
                           fPrimer = "GTGYCAGCMGCNGCGG",
                           rPrimer = "CCGYCAATTYMTTTRAGTTT",
+                          primerMismatch = 0,
                           keepPE = TRUE,
                           gz = TRUE,
                           pattern = "fastq",
@@ -266,7 +267,7 @@ removePrimers <- function(dir.from,
           pattern = rPrimer,
           subject = dna,
           at = 1:maxSpacer,
-          max.mismatch = 0,
+          max.mismatch = primerMismatch,
           min.mismatch = 0,
           with.indels = FALSE,
           fixed = FALSE
@@ -633,3 +634,4 @@ writeDTB <- function(ps, path) {
               sep = "\t",
               row.names = FALSE)
 }
+
