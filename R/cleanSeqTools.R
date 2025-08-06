@@ -110,7 +110,8 @@ checkPrimers <- function(dir.from,
                          fPrimer = "GTGYCAGCMGCNGCGG",
                          rPrimer = "CCGYCAATTYMTTTRAGTTT",
                          pattern = "fastq",
-                         maxSpacer = 10) {
+                         maxSpacer = 10,
+                         primerMismatch = 0) {
   fqs <-
     list.files(path = dir.from,
                pattern = pattern,
@@ -138,7 +139,7 @@ checkPrimers <- function(dir.from,
         pattern = primer,
         subject = dna,
         at = 1:maxSpacer,
-        max.mismatch = 0,
+        max.mismatch = primerMismatch,
         min.mismatch = 0,
         with.indels = FALSE,
         fixed = FALSE
@@ -229,6 +230,7 @@ removePrimers <- function(dir.from,
              dir.to,
              fPrimer,
              rPrimer,
+             primerMismatch,
              keepPE,
              maxSpacer,
              gz) {
@@ -239,7 +241,7 @@ removePrimers <- function(dir.from,
           pattern = fPrimer,
           subject = dna,
           at = 1:maxSpacer,
-          max.mismatch = 0,
+          max.mismatch = primerMismatch,
           min.mismatch = 0,
           with.indels = FALSE,
           fixed = FALSE
@@ -343,6 +345,7 @@ removePrimers <- function(dir.from,
                         dir.to,
                         fPrimer,
                         rPrimer,
+                        primerMismatch,
                         keepPE,
                         maxSpacer,
                         gz)
@@ -356,6 +359,7 @@ removePrimers <- function(dir.from,
            dir.to,
            fPrimer,
            rPrimer,
+           primerMismatch,
            keepPE,
            maxSpacer,
            gz)
@@ -634,4 +638,5 @@ writeDTB <- function(ps, path) {
               sep = "\t",
               row.names = FALSE)
 }
+
 
