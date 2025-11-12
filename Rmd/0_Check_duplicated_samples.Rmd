@@ -1,0 +1,31 @@
+---
+title: "NYMPHE and KV samples"
+author: "Michal Strejcek @ UCT Prague"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+Sequencing run sample renaming
+
+Prepare files for dada2.
+```{r libraries}
+devtools::source_url("https://raw.githubusercontent.com/strejcem/cleanSeqTools/master/R/cleanSeqTools.R")
+library(tidyverse)
+```
+
+```{r check}
+list.files("source", pattern = ".*csv", full.names = TRUE) %>% 
+  read_csv(skip = 1, col_names = c("row", paste0("col", 1:12)), col_types = "cccccccccccc", id = "plate") %>% 
+  pivot_longer(-1:-2, names_to = "col") %>%
+  mutate(n = n(), .by = value) %>% 
+  filter(n != 1) %>% 
+  arrange(value)
+
+
+```
+
+
+
+### The End
+```{r session}
+sessionInfo()
+```

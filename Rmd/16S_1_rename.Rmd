@@ -1,0 +1,33 @@
+---
+title: "NYMPHE and KV samples"
+author: "Michal Strejcek @ UCT Prague"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+Sequencing run sample renaming
+
+Prepare files for dada2.
+```{r libraries}
+devtools::source_url("https://raw.githubusercontent.com/strejcem/cleanSeqTools/master/R/cleanSeqTools.R")
+library(tidyverse)
+```
+
+```{r rename}
+plates <- 1
+dir.create("renamed")
+
+for(i in plates){
+  renameByID(dir.from = paste0("source/"),
+           dir.to = "renamed/",
+           extension = "fastq.*",
+           csvFile = paste0("source/MiSeq25-10.csv"),
+           demuxy_format = "A1"
+           )
+}
+
+```
+
+### The End
+```{r session}
+sessionInfo()
+```

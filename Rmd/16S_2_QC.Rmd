@@ -1,0 +1,43 @@
+---
+title: "NYMPHE and KV samples"
+author: "Michal Strejcek @ UCT Prague"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+# 16S amplicon analysis
+
+Prepare files for dada2.
+```{r libraries}
+library(dada2)
+devtools::source_url("https://raw.githubusercontent.com/strejcem/cleanSeqTools/master/R/cleanSeqTools.R")
+```
+
+```{r primers}
+path <- "removed_primers"
+
+checkPrimers("renamed", fPrimer = "GTGYCAGCMGCNGCGG", rPrimer = "CCGYCAATTYMTTTRAGTTT")
+
+removePrimers(dir.from = "renamed", dir.to = path,
+                              fPrimer = "GTGYCAGCMGCNGCGG", rPrimer = "CCGYCAATTYMTTTRAGTTT",
+                              )
+```
+```{r files}
+
+list.files(path)
+
+fnFs <- sort(list.files(path, pattern="_R1.fastq.gz", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_R2.fastq.gz", full.names = TRUE))
+# Extract sample names
+sample.names <-sub("^16S_", "", basename(fnFs))
+sample.names <-sub("_R1.fastq.gz$", "", sample.names)
+
+plotQualityProfile(fnFs[2:3])
+plotQualityProfile(fnFs[2:3]) + ggplot2::xlim(200,300) + ggplot2::ylim(20,40)
+
+plotQualityProfile(fnRs[2:3])
+plotQualityProfile(fnRs[2:3]) + ggplot2::xlim(150,250)                    
+```
+### The End
+```{r session}
+sessionInfo()
+```

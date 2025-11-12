@@ -1,0 +1,198 @@
+---
+title: "NYMPHE and KV samples"
+author: "Michal Strejcek @ UCT Prague"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# 16S amplicon analysis
+
+Version 1.0.0
+--------------------------------------------
+### Important parameters:
+```{r parameters}
+#fastq files location (with removed primers)
+fastq_loc <- "removed_primers"
+#dada2::filterAndTrim()
+truncLen_f <- 240
+truncLen_r <- 170
+#dada2::mergePairs()
+maxMismatch <- 1
+```
+```{r libraries}
+library(dada2); packageVersion("dada2")
+library(phyloseq)
+library(tidyverse)
+devtools::source_url("https://raw.githubusercontent.com/strejcem/cleanSeqTools/master/R/cleanSeqTools.R")
+Sys.setenv(RSTUDIO_PANDOC="/usr/lib/rstudio-server/bin/quarto/bin/tools")
+set.seed(123)
+```
+
+```{r qc}
+list.files(fastq_loc)
+
+fnFs <- sort(list.files(fastq_loc, pattern="_R1.fastq.gz", full.names = TRUE))
+fnRs <- sort(list.files(fastq_loc, pattern="_R2.fastq.gz", full.names = TRUE))
+
+plotQualityProfile(fnFs[c(2,100)])
+plotQualityProfile(fnRs[c(2,100)])
+```
+```{r filter}
+# Extract sample names
+sample.names <-sub("^16S_", "", basename(fnFs))
+sample.names <-sub("_R1.fastq.gz$", "", sample.names)
+
+# Place filtered files in filtered/ subdirectory
+filtFs <- file.path("filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path("filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(truncLen_f, truncLen_r),
+                     maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, multithread=TRUE, matchIDs = TRUE) # On Windows set multithread=FALSE
+head(out)
+```
+
+```{r dada}
+
+no_learn <- grepl("mock|blank", filtFs, ignore.case = TRUE)
+
+errF <- learnErrors(filtFs[!no_learn], multithread=TRUE, randomize = TRUE)
+errR <- learnErrors(filtRs[!no_learn], multithread=TRUE, randomize = TRUE)
+
+plotErrors(errF, nominalQ=TRUE)
+plotErrors(errR, nominalQ=TRUE)
+
+dadaFs <- dada(filtFs, err=errF, pool = TRUE, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, pool = TRUE, multithread=TRUE)
+saveRDS(dadaFs, "dadaFs.RDS")
+saveRDS(dadaRs, "dadaRs.RDS")
+
+mergers_info <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=FALSE, returnRejects = TRUE)
+saveRDS(mergers_info, "mergers_info.RDS")
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE, returnRejects = FALSE)
+saveRDS(mergers, "mergers.RDS")
+
+# Inspect the merger data.frame from the first sample
+head(mergers[[1]])
+
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+
+table(nchar(getSequences(seqtab)))
+ggplot(mapping = aes(nchar(getSequences(seqtab)))) +
+  geom_histogram(binwidth = 5)
+
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="pooled", multithread=TRUE, verbose=TRUE)
+
+dim(seqtab.nochim)
+sum(seqtab.nochim)
+sum(seqtab.nochim)/sum(seqtab)
+
+saveRDS(seqtab.nochim, file = "seqtab.nochim.RDS")
+```
+
+
+```{r stats}
+getN <- function(x) sum(getUniques(x, , silence = TRUE))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+
+track <- as.data.frame(track) %>% 
+  mutate(perc_total = nonchim/input, perc_merge = merged/denoisedF) %>%
+  arrange(desc(perc_total))
+
+gg_track <- track %>% 
+  as_tibble(rownames = "Sample") %>% 
+  mutate(Type = case_when(
+    str_detect(Sample, regex("mock", ignore_case = T)) ~ "Mock",
+    str_detect(Sample, regex("(blank)|(nk)", ignore_case = T)) ~ "Blank",
+    TRUE ~ "Sample"
+  )) %>% 
+  pivot_longer(-c(Sample, Type)) %>% 
+  mutate(name = fct_inorder(name))
+
+gg_track %>% 
+  filter(!str_detect(name, "perc_")) %>% 
+  ggplot(aes(x = name, y = value, col = name)) +
+  ggbeeswarm::geom_beeswarm(size = 1) +
+  geom_boxplot(col = "black", size = 0.3, fill = NA, outliers = FALSE) +
+  facet_wrap(~Type, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(c("input", "filtered","denoisedF", "denoisedR", "merged", "nonchim"))
+
+gg_track %>% 
+  filter(str_detect(name, "perc_")) %>% 
+  ggplot(aes(x = name, y = value, col = name)) +
+  ggbeeswarm::geom_beeswarm(size = 1) +
+  geom_boxplot(col = "black", size = 0.3, fill = NA, outliers = FALSE) +
+  facet_wrap(~Type, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+track
+saveRDS(track, file = "track.RDS")
+
+# Let's check replicates
+bray <- vegan::vegdist(seqtab.nochim)
+h <- hclust(bray, method = "ward.D2")
+par(cex=0.2)
+plot(h)
+```
+
+
+```{r mock}
+# Mock community analysis
+mock.ref <- Biostrings::readDNAStringSet("/storage/DBs/mock/ZymoBIOMICS.STD.refseq.v2.SSU.fasta")
+mock_sample <- which(grepl("MOCK", rownames(seqtab.nochim), ignore.case = TRUE))[1]
+checkMock(seqtab.nochim[mock_sample, ], mock.ref = mock.ref, topTaxa = 20)
+```
+
+
+```{r Taxonomy}
+
+taxa <-
+  assignTaxonomy(
+    seqtab.nochim,
+    "/storage/DBs/GG2/gg2_2024_09_toGenus_trainset.fa.gz",
+    taxLevels = c(
+      "Kingdom",
+      "Phylum",
+      "Class",
+      "Order",
+      "Family",
+      "Genus"
+    ),
+    multithread = TRUE,
+    
+  )
+# taxa <- addSpecies(taxa, "/storage/DBs/GG2/2024.09.backbone.full-length.fa", allowMultiple = TRUE)
+
+saveRDS(taxa, file = "taxa.RDS")
+```
+
+
+```{r phyloseq}
+ps.complete <- phyloseq(
+  tax_table(taxa),
+  otu_table(seqtab.nochim, taxa_are_rows = FALSE)
+)
+
+dna <- Biostrings::DNAStringSet(taxa_names(ps.complete))
+names(dna) <- taxa_names(ps.complete)
+ps.complete <- merge_phyloseq(ps.complete, dna)
+taxa_names(ps.complete) <- paste0("ASV", seq(ntaxa(ps.complete)))
+ps.complete
+
+writeDTB(ps.complete, path = "DTB.complete.tsv")
+
+saveRDS(ps.complete, "ps.complete.RDS")
+```
+
+### The End
+
+```{r session}
+sessionInfo()
+```
